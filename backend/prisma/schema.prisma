@@ -1,0 +1,180 @@
+// This is your Prisma schema file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum Role {
+  student
+  admin
+}
+
+enum Status {
+  shortlisted
+  selected
+  rejected
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String
+  role       Role     @default(student)
+  email      String   @unique
+  password   String
+
+  // Optional student profile fields
+  rollNo     String?  @unique
+  department String?
+  year       String?
+  section    String?
+  phone      String?
+  dob        DateTime?
+  bloodGroup String?
+  address    String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Event {
+  id        Int      @id @default(autoincrement())
+  title     String
+  day       Int      // 0-6
+  startHour Int
+  endHour   Int
+  color     String
+  venue     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  time      String
+  author    String
+  type      String   // "unread" | "read"
+  color     String
+  category  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Drive {
+  id              Int      @id @default(autoincrement())
+  company         String
+  date            String
+  ctc             String
+  minCGPA         Float
+  branches        String   // JSON stringified array
+  roles           String   // JSON stringified array
+  rounds          String   // JSON stringified array
+  deadline        String
+  registeredCount Int      @default(0)
+  color           String
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PlacedStudent {
+  id           Int      @id @default(autoincrement())
+  name         String
+  rollNo       String?
+  dept         String
+  company      String
+  companyColor String
+  package      Float
+  role         String
+  year         Int
+  photo        String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  initials  String
+  color     String
+  sector    String
+  ctcRange  String
+  hired     Int      @default(0)
+  status    String   // "partner" | "upcoming"
+  desc      String?
+  visitDate String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShortlistedStudent {
+  id        Int      @id @default(autoincrement())
+  name      String
+  rollNo    String
+  dept      String
+  company   String
+  round     String
+  status    Status   @default(shortlisted)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DocRequest {
+  id         Int      @id @default(autoincrement())
+  docName    String
+  category   String
+  targetYear String
+  targetDept String
+  deadline   String
+  note       String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model DocumentSubmission {
+  id              Int      @id @default(autoincrement())
+  studentId       String
+  studentName     String
+  rollNo          String
+  department      String
+  docName         String
+  fileName        String?
+  size            String?
+  status          String   @default("not-uploaded")
+  rejectionReason String?
+  category        String?
+  required        Boolean  @default(false)
+  color           String?
+  icon            String?
+  description     String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SupportTicket {
+  id          Int      @id @default(autoincrement())
+  subject     String
+  category    String
+  description String
+  priority    String
+  status      String   @default("open")
+  studentId   String
+  studentName String?
+  rollNo      String?
+  adminNote   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
