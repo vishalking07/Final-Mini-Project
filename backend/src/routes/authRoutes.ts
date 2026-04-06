@@ -132,9 +132,9 @@ router.post('/login/google', async (req: Request, res: Response): Promise<any> =
             user: userWithoutPassword
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Google login error:', error);
-        res.status(500).json({ success: false, message: 'Google Authentication failed' });
+        res.status(500).json({ success: false, message: 'Google Authentication failed: ' + (error.message || String(error)) });
     }
 });
 
