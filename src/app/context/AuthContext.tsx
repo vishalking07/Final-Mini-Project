@@ -42,9 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const API_URL = import.meta.env.VITE_API_URL || "https://student-orientation-portal.onrender.com";
+
   const login = async ({ role, identifier, password }: { role: UserRole; identifier: string; password: string }) => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, identifier, password }),
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async (credential: string) => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login/google", {
+      const res = await fetch(`${API_URL}/api/auth/login/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credential }),
