@@ -1,10 +1,9 @@
 import { Quote, Award, MapPin, GraduationCap, Users, BookOpen, Clock } from "lucide-react";
 
-const campusImg1 = "/src/BIT.jpg"
-const campusImg2 = "/src/BIT.jpg"
-
-const chairmanPhoto = "/src/Chairman.png";
-const principalPhoto = "/src/Principal.png";
+import campusImg1 from "../../../src/BIT.jpg";
+import campusImg2 from "../../../src/BIT.jpg";
+import chairmanPhoto from "../../../src/Chairman.png";
+import principalPhoto from "../../../src/Principal.png";
 const leadership = [
   {
     role: "Chairman",

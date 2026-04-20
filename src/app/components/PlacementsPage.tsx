@@ -5,7 +5,7 @@ import {
   TrendingUp, GraduationCap, ChevronDown, ChevronUp, Award,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { Drive, PlacedStudent, Company, ShortlistedStudent, DEPARTMENTS } from "./placementsData";
+import { Drive, PlacedStudent, Company, ShortlistedStudent, DEPARTMENTS, SEED_DRIVES, SEED_PLACED, SEED_COMPANIES, SEED_SHORTLISTED } from "./placementsData";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const field = (label: string, children: React.ReactNode) => (
@@ -53,20 +53,25 @@ function AdminPlacements() {
   const [tab, setTab] = useState<"drives" | "shortlist" | "placed" | "companies">("drives");
   const [drives, setDrives] = useState<Drive[]>(() => {
     const s = localStorage.getItem("bit_placements_drives");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_DRIVES;
   });
   const [placed, setPlaced] = useState<PlacedStudent[]>(() => {
     const s = localStorage.getItem("bit_placements_placed");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_PLACED;
   });
   const [companies, setCompanies] = useState<Company[]>(() => {
     const s = localStorage.getItem("bit_placements_companies");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_COMPANIES;
   });
   const [shortlisted, setShortlisted] = useState<ShortlistedStudent[]>(() => {
     const s = localStorage.getItem("bit_placements_shortlisted");
+    return s ? JSON.parse(s) : SEED_SHORTLISTED;
+  });
+  const [driveRegs, setDriveRegs] = useState<any[]>(() => {
+    const s = localStorage.getItem("bit_drive_registrations");
     return s ? JSON.parse(s) : [];
   });
+  const [adminViewRegs, setAdminViewRegs] = useState<{ id: number; company: string; color: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => { localStorage.setItem("bit_placements_drives", JSON.stringify(drives)); }, [drives]);
@@ -230,9 +235,12 @@ function AdminPlacements() {
                     {d.branches.map(b => <span key={b} className="px-2 py-0.5 rounded-full text-xs" style={{ background: "var(--surface-inset)", color: "var(--muted-foreground)" }}>{b}</span>)}
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => { setDf({ company: d.company, color: d.color, date: d.date, ctc: d.ctc, minCGPA: d.minCGPA, branches: d.branches, roles: d.roles, rounds: d.rounds, deadline: d.deadline, registeredCount: d.registeredCount }); setDriveModal(d); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(85,64,222,0.1)" }}><Pencil size={13} style={{ color: "#5540DE" }} /></button>
-                  <button onClick={() => delDrive(d.id)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(220,38,38,0.1)" }}><Trash2 size={13} style={{ color: "#DC2626" }} /></button>
+                <div className="flex flex-col gap-1 items-end shrink-0">
+                  <div className="flex gap-1">
+                    <button onClick={() => { setDf({ company: d.company, color: d.color, date: d.date, ctc: d.ctc, minCGPA: d.minCGPA, branches: d.branches, roles: d.roles, rounds: d.rounds, deadline: d.deadline, registeredCount: d.registeredCount }); setDriveModal(d); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(85,64,222,0.1)" }}><Pencil size={13} style={{ color: "#5540DE" }} /></button>
+                    <button onClick={() => delDrive(d.id)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(220,38,38,0.1)" }}><Trash2 size={13} style={{ color: "#DC2626" }} /></button>
+                  </div>
+                  <button onClick={() => setAdminViewRegs({ id: d.id, company: d.company, color: d.color })} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-bold">View Regs</button>
                 </div>
               </div>
             </div>
@@ -445,6 +453,27 @@ function AdminPlacements() {
           </div>
         </Modal>
       )}
+
+      {adminViewRegs && (
+        <Modal title={`${adminViewRegs.company} Registrations`} onClose={() => setAdminViewRegs(null)}>
+          <div className="overflow-hidden rounded-xl bg-white" style={{ border: "1px solid var(--glass-border)" }}>
+            <table className="w-full text-left text-xs text-gray-700">
+              <thead className="bg-gray-50 border-b border-gray-100 text-gray-400">
+                <tr><th className="px-3 py-2 font-semibold">Student</th><th className="px-3 py-2 font-semibold">Roll No</th><th className="px-3 py-2 font-semibold">Contact</th><th className="px-3 py-2 font-semibold">Date</th></tr>
+              </thead>
+              <tbody>
+                {driveRegs.filter(r => r.driveId === adminViewRegs.id).map(r => (
+                  <tr key={r.id} className="border-b border-gray-50">
+                    <td className="px-3 py-2 font-semibold">{r.studentName}</td><td className="px-3 py-2 font-mono">{r.rollNo}</td>
+                    <td className="px-3 py-2">{r.email}<br/>{r.phone}</td><td className="px-3 py-2">{r.date}</td>
+                  </tr>
+                ))}
+                {driveRegs.filter(r => r.driveId === adminViewRegs.id).length === 0 && <tr><td colSpan={4} className="p-4 text-center">No registrations yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -456,21 +485,36 @@ function StudentPlacements() {
   const { user } = useAuth();
   const [drives, setDrives] = useState<Drive[]>(() => {
     const s = localStorage.getItem("bit_placements_drives");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_DRIVES;
   });
   const [placed, setPlaced] = useState<PlacedStudent[]>(() => {
     const s = localStorage.getItem("bit_placements_placed");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_PLACED;
   });
   const [companies, setCompanies] = useState<Company[]>(() => {
     const s = localStorage.getItem("bit_placements_companies");
-    return s ? JSON.parse(s) : [];
+    return s ? JSON.parse(s) : SEED_COMPANIES;
   });
   const [shortlisted, setShortlisted] = useState<ShortlistedStudent[]>(() => {
     const s = localStorage.getItem("bit_placements_shortlisted");
+    return s ? JSON.parse(s) : SEED_SHORTLISTED;
+  });
+  const [driveRegs, setDriveRegs] = useState<any[]>(() => {
+    const s = localStorage.getItem("bit_drive_registrations");
     return s ? JSON.parse(s) : [];
   });
+  useEffect(() => { localStorage.setItem("bit_drive_registrations", JSON.stringify(driveRegs)); }, [driveRegs]);
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  const [registeringDrive, setRegisteringDrive] = useState<Drive | null>(null);
+  const [regForm, setRegForm] = useState({ studentName: user?.name || "", rollNo: user?.rollNo || "", email: "", phone: "" });
+
+  const submitDriveReg = (driveId: number) => {
+    if (!regForm.studentName || !regForm.rollNo) return;
+    setDriveRegs(p => [...p, { id: Date.now(), driveId, date: new Date().toLocaleDateString(), ...regForm }]);
+    setRegisteringDrive(null);
+    setRegForm({ studentName: user?.name || "", rollNo: user?.rollNo || "", email: "", phone: "" });
+  };
 
   const myRecord = shortlisted.find(s => s.rollNo?.toLowerCase() === (user?.rollNo || "21CS001").toLowerCase());
 
@@ -536,10 +580,19 @@ function StudentPlacements() {
                 </div>
               </div>
               {expanded === d.id && (
-                <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-4" style={{ borderTop: "1px solid var(--glass-border)" }}>
-                  <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Roles</p>{d.roles.map(r => <span key={r} className="inline-block mr-1 mb-1 text-xs px-2 py-0.5 rounded-full text-white" style={{ background: d.color, fontWeight: 600 }}>{r}</span>)}</div>
-                  <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Eligibility</p><p className="text-xs mb-1" style={{ color: "var(--foreground)" }}>Min CGPA: <strong>{d.minCGPA}</strong></p>{d.branches.map(b => <span key={b} className="inline-block mr-1 mb-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(85,64,222,0.1)", color: "#5540DE", fontWeight: 600 }}>{b}</span>)}</div>
-                  <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Rounds</p>{d.rounds.map((r, i) => <div key={r} className="flex items-center gap-2 mb-1"><div className="w-4 h-4 rounded-full flex items-center justify-center text-white shrink-0" style={{ background: d.color, fontSize: "9px", fontWeight: 700 }}>{i + 1}</div><span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{r}</span></div>)}</div>
+                <div className="px-5 pb-5 flex flex-col gap-4" style={{ borderTop: "1px solid var(--glass-border)" }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                    <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Roles</p>{d.roles.map(r => <span key={r} className="inline-block mr-1 mb-1 text-xs px-2 py-0.5 rounded-full text-white" style={{ background: d.color, fontWeight: 600 }}>{r}</span>)}</div>
+                    <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Eligibility</p><p className="text-xs mb-1" style={{ color: "var(--foreground)" }}>Min CGPA: <strong>{d.minCGPA}</strong></p>{d.branches.map(b => <span key={b} className="inline-block mr-1 mb-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(85,64,222,0.1)", color: "#5540DE", fontWeight: 600 }}>{b}</span>)}</div>
+                    <div><p className="text-xs mb-1.5" style={{ fontWeight: 600, color: "var(--muted-foreground)" }}>Rounds</p>{d.rounds.map((r, i) => <div key={r} className="flex items-center gap-2 mb-1"><div className="w-4 h-4 rounded-full flex items-center justify-center text-white shrink-0" style={{ background: d.color, fontSize: "9px", fontWeight: 700 }}>{i + 1}</div><span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{r}</span></div>)}</div>
+                  </div>
+                  <div className="pt-4 flex justify-end" style={{ borderTop: "1px dashed var(--glass-border)" }}>
+                    {driveRegs.find(r => r.driveId === d.id && r.rollNo === user?.rollNo) ? (
+                      <span className="px-4 py-2 rounded-xl bg-green-50 text-green-700 text-sm font-bold flex items-center gap-2">✓ Registered for this Drive</span>
+                    ) : (
+                      <button onClick={(e) => { e.stopPropagation(); setRegForm({ studentName: user?.name || "", rollNo: user?.rollNo || "", email: "", phone: "" }); setRegisteringDrive(d); }} className="px-6 py-2 rounded-xl text-white text-sm hover:opacity-90 font-bold" style={{ background: d.color }}>Register Now</button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -613,6 +666,27 @@ function StudentPlacements() {
           ))}
         </div>
       </div>
+
+      {registeringDrive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}>
+          <div className="glass-card-strong rounded-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5" style={{ background: registeringDrive.color, borderRadius: "16px 16px 0 0" }}>
+              <h3 className="text-white text-base font-bold">Register for {registeringDrive.company}</h3>
+              <button onClick={() => setRegisteringDrive(null)} className="text-white/70 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="p-5 flex flex-col gap-3">
+              <div><label className="block text-xs mb-1 font-bold text-gray-500">Student Name</label><input value={regForm.studentName} onChange={e => setRegForm(p => ({ ...p, studentName: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none bg-gray-50" /></div>
+              <div><label className="block text-xs mb-1 font-bold text-gray-500">Roll No</label><input value={regForm.rollNo} onChange={e => setRegForm(p => ({ ...p, rollNo: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none bg-gray-50" /></div>
+              <div><label className="block text-xs mb-1 font-bold text-gray-500">Email ID</label><input value={regForm.email} onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none" /></div>
+              <div><label className="block text-xs mb-1 font-bold text-gray-500">Phone</label><input value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none" /></div>
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setRegisteringDrive(null)} className="flex-1 py-2.5 rounded-xl text-gray-600 bg-gray-100 text-sm font-bold">Cancel</button>
+                <button onClick={() => submitDriveReg(registeringDrive.id)} className="flex-1 py-2.5 rounded-xl text-white text-sm hover:opacity-90 font-bold" style={{ background: registeringDrive.color }}>Confirm Registration</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

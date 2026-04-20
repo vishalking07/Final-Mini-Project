@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Pencil, Trash2, Save, X, Calendar, Users, ExternalLink, MapPin, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, Save, X, Calendar, Users, ExternalLink, MapPin, Clock, ListOrdered, ChevronRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface Club {
@@ -10,6 +10,17 @@ interface Event {
   id: number; title: string; date: string; time: string;
   venue: string; type: string; organizer: string; color: string;
   emoji: string; registrationOpen: boolean; desc: string;
+}
+
+interface Registration {
+  id: number;
+  entityId: number;
+  studentName: string;
+  rollNo: string;
+  email: string;
+  phone: string;
+  motivation?: string;
+  date: string;
 }
 
 const initClubs: Club[] = [
@@ -46,15 +57,39 @@ export function EventsClubsPage() {
   const [events, setEvents] = useState<Event[]>(initEvents);
   const [filterCat, setFilterCat] = useState("All");
 
-  // Clubs modal
+  // Registration states
+  const [clubRegs, setClubRegs] = useState<Registration[]>(() => {
+    const s = localStorage.getItem("bit_club_registrations");
+    return s ? JSON.parse(s) : [];
+  });
+  const [eventRegs, setEventRegs] = useState<Registration[]>(() => {
+    const s = localStorage.getItem("bit_event_registrations");
+    return s ? JSON.parse(s) : [];
+  });
+
+  useEffect(() => { localStorage.setItem("bit_club_registrations", JSON.stringify(clubRegs)); }, [clubRegs]);
+  useEffect(() => { localStorage.setItem("bit_event_registrations", JSON.stringify(eventRegs)); }, [eventRegs]);
+
+  // Modals for admin/editors
   const [showClubModal, setShowClubModal] = useState(false);
   const [editingClub, setEditingClub] = useState<Club | null>(null);
   const [clubForm, setClubForm] = useState({ name: "", category: "Technical", desc: "", members: 0, lead: "", email: "", color: "#5540DE", emoji: "⭐" });
 
-  // Events modal
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [eventForm, setEventForm] = useState({ title: "", date: "", time: "", venue: "", type: "", organizer: "", desc: "", color: "#5540DE", emoji: "📅", registrationOpen: true });
+
+  // Registration / View Modals
+  const [viewingEvent, setViewingEvent] = useState<Event | null>(null);
+  const [registeringClub, setRegisteringClub] = useState<Club | null>(null);
+  const [registeringEvent, setRegisteringEvent] = useState<Event | null>(null);
+  
+  // Registration form state
+  const BLANK_REG = { studentName: user?.name || "", rollNo: user?.rollNo || "", email: "", phone: "", motivation: "" };
+  const [regForm, setRegForm] = useState(BLANK_REG);
+
+  // Admin view registrations modal
+  const [adminViewRegs, setAdminViewRegs] = useState<{ type: "club" | "event", entityId: number, title: string, color: string } | null>(null);
 
   const clubCategories = ["All", "Technical", "Cultural", "Social Service", "Sports"];
   const filteredClubs = clubs.filter(c => filterCat === "All" || c.category === filterCat);
@@ -79,6 +114,25 @@ export function EventsClubsPage() {
   };
   const deleteEvent = (id: number) => setEvents(prev => prev.filter(e => e.id !== id));
 
+  const submitRegistration = (type: "club" | "event", entityId: number) => {
+    if (!regForm.studentName || !regForm.rollNo) return;
+    const payload: Registration = {
+      id: Date.now(),
+      entityId,
+      ...regForm,
+      date: new Date().toLocaleDateString()
+    };
+    if (type === "club") {
+      setClubRegs(p => [...p, payload]);
+      setRegisteringClub(null);
+    } else {
+      setEventRegs(p => [...p, payload]);
+      setRegisteringEvent(null);
+      setViewingEvent(null);
+    }
+    setRegForm(BLANK_REG);
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-8" style={{ fontFamily: "'Poppins', sans-serif" }}>
       {/* Hero */}
@@ -99,7 +153,7 @@ export function EventsClubsPage() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {([["clubs", "🏛️ Clubs", clubs.length], ["events", "📅 Events", events.length]] as const).map(([t, label, count]) => (
           <button key={t} onClick={() => setTab(t)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm transition-all"
@@ -107,7 +161,7 @@ export function EventsClubsPage() {
             {label} <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ background: tab === t ? "rgba(255,255,255,0.2)" : "rgba(85,64,222,0.1)", color: tab === t ? "white" : "#5540DE", fontWeight: 700 }}>{count}</span>
           </button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
           {isAdmin && tab === "clubs" && (
             <button onClick={openAddClub} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-sm hover:opacity-90" style={{ background: "#5540DE", fontWeight: 600 }}>
               <Plus size={14} /> Add Club
@@ -136,7 +190,9 @@ export function EventsClubsPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredClubs.map(club => (
+            {filteredClubs.map(club => {
+              const myReg = clubRegs.find(r => r.entityId === club.id && r.rollNo === user?.rollNo);
+              return (
               <div key={club.id} className="bento-card rounded-[2rem] overflow-hidden group transition-all hover:-translate-y-2 hover:shadow-xl border-none"
                 style={{ boxShadow: `0 8px 32px ${club.color}15` }}>
                 <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${club.color}, ${club.color}60)` }} />
@@ -150,9 +206,14 @@ export function EventsClubsPage() {
                       </div>
                     </div>
                     {isAdmin && (
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditClub(club)} className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center"><Pencil size={12} className="text-purple-600" /></button>
-                        <button onClick={() => deleteClub(club.id)} className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><Trash2 size={12} className="text-red-500" /></button>
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1">
+                          <button onClick={() => openEditClub(club)} className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center" title="Edit"><Pencil size={12} className="text-purple-600" /></button>
+                          <button onClick={() => deleteClub(club.id)} className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center" title="Delete"><Trash2 size={12} className="text-red-500" /></button>
+                        </div>
+                        <button onClick={() => setAdminViewRegs({ type: "club", entityId: club.id, title: club.name, color: club.color })} className="w-full py-1 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center gap-1" title="View Registrations">
+                          <ListOrdered size={10} /> Registrations
+                        </button>
                       </div>
                     )}
                   </div>
@@ -161,26 +222,34 @@ export function EventsClubsPage() {
                     <div className="flex items-center gap-1.5 text-gray-500 text-xs">
                       <Users size={12} />{club.members} members
                     </div>
-                    <a href={`mailto:${club.email}`}
-                      className="text-xs px-3 py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
-                      style={{ background: club.color, fontWeight: 600 }}>
-                      Join Club
-                    </a>
+                    {myReg ? (
+                      <span className="text-xs px-3 py-1.5 rounded-lg text-green-700 bg-green-100 font-semibold flex items-center gap-1">
+                        ✓ Registered
+                      </span>
+                    ) : (
+                      <button onClick={() => { setRegForm(BLANK_REG); setRegisteringClub(club); }}
+                        className="text-xs px-3 py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity cursor-pointer"
+                        style={{ background: club.color, fontWeight: 600 }}>
+                        Join Club
+                      </button>
+                    )}
                   </div>
                   <p className="text-gray-400 text-xs mt-2">Lead: {club.lead}</p>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </>
       )}
 
       {/* Events Tab */}
       {tab === "events" && (
-        <div className="flex flex-col gap-5">
-          {events.map(ev => (
-            <div key={ev.id} className="bento-card-strong rounded-[2.5rem] overflow-hidden transition-all hover:-translate-y-1 hover:shadow-2xl border-none"
-              style={{ boxShadow: `0 8px 40px ${ev.color}18` }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {events.map(ev => {
+            const myReg = eventRegs.find(r => r.entityId === ev.id && r.rollNo === user?.rollNo);
+            return (
+            <div key={ev.id} className="bento-card-strong rounded-[2.5rem] overflow-hidden transition-all hover:-translate-y-1 hover:shadow-2xl border-none cursor-pointer group"
+              style={{ boxShadow: `0 8px 40px ${ev.color}18` }} onClick={() => setViewingEvent(ev)}>
               <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${ev.color}, ${ev.color}60)` }} />
               <div className="p-5">
                 <div className="flex items-start gap-4">
@@ -189,44 +258,197 @@ export function EventsClubsPage() {
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: ev.color, fontWeight: 600 }}>{ev.type}</span>
-                        <h3 className="text-gray-800 text-base mt-1.5" style={{ fontWeight: 700 }}>{ev.title}</h3>
+                        <h3 className="text-gray-800 text-base mt-1.5" style={{ fontWeight: 700, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.title}</h3>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-xs px-2.5 py-1 rounded-full ${ev.registrationOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`} style={{ fontWeight: 600 }}>
-                          {ev.registrationOpen ? "✓ Open" : "Closed"}
-                        </span>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        {myReg ? (
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-green-100 text-green-700 font-bold">✓ Registered</span>
+                        ) : (
+                          <span className={`text-[10px] px-2 py-1 rounded-full ${ev.registrationOpen ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`} style={{ fontWeight: 600 }}>
+                            {ev.registrationOpen ? "Open for Registration" : "Closed"}
+                          </span>
+                        )}
                         {isAdmin && (
-                          <div className="flex gap-1">
-                            <button onClick={() => openEditEvent(ev)} className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center"><Pencil size={12} className="text-purple-600" /></button>
-                            <button onClick={() => deleteEvent(ev.id)} className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><Trash2 size={12} className="text-red-500" /></button>
+                          <div className="flex flex-col gap-1 items-end mt-1" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-1">
+                              <button onClick={() => openEditEvent(ev)} className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center"><Pencil size={12} className="text-purple-600" /></button>
+                              <button onClick={() => deleteEvent(ev.id)} className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><Trash2 size={12} className="text-red-500" /></button>
+                            </div>
+                            <button onClick={() => setAdminViewRegs({ type: "event", entityId: ev.id, title: ev.title, color: ev.color })} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center gap-1" title="View Registrations">
+                              <ListOrdered size={10} /> Registrations
+                            </button>
                           </div>
                         )}
                       </div>
                     </div>
-                    <p className="text-gray-600 text-xs leading-relaxed mt-2 mb-3">{ev.desc}</p>
-                    <div className="flex flex-wrap gap-3">
-                      <span className="text-gray-500 text-xs flex items-center gap-1"><Calendar size={11} />{ev.date}</span>
-                      <span className="text-gray-500 text-xs flex items-center gap-1"><Clock size={11} />{ev.time}</span>
-                      <span className="text-gray-500 text-xs flex items-center gap-1"><MapPin size={11} />{ev.venue}</span>
+                    <div className="flex items-center gap-1 mt-3">
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 text-gray-600 text-[11px] font-medium"><Calendar size={12} className="text-gray-400" /> {ev.date}</span>
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 text-gray-600 text-[11px] font-medium"><Clock size={12} className="text-gray-400" /> {ev.time}</span>
                     </div>
-                    <div className="flex items-center gap-3 mt-3">
-                      <p className="text-gray-400 text-xs">By: {ev.organizer}</p>
-                      {ev.registrationOpen && (
-                        <a href="https://bip.bitsathy.ac.in" target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
-                          style={{ background: ev.color, fontWeight: 600 }}>
-                          Register <ExternalLink size={11} />
-                        </a>
-                      )}
-                    </div>
+                  </div>
+                  <div className="flex items-center self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50"><ChevronRight size={16} className="text-gray-500" /></div>
                   </div>
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 
+      {/* View Event Detail Modal */}
+      {viewingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ backgroundColor: "rgba(10, 5, 25, 0.65)", backdropFilter: "blur(12px)" }}>
+          <div className="w-full max-w-2xl rounded-[2.5rem] p-8 bento-card-strong shadow-2xl border-none max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 relative">
+            <button onClick={() => setViewingEvent(null)} className="absolute top-6 right-6 w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors"><X size={16} /></button>
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-5xl shrink-0" style={{ background: `${viewingEvent.color}15` }}>{viewingEvent.emoji}</div>
+              <div>
+                <span className="text-xs px-2.5 py-1 rounded-full text-white shadow-sm inline-block mb-2" style={{ background: viewingEvent.color, fontWeight: 700 }}>{viewingEvent.type}</span>
+                <h2 className="text-2xl text-gray-900 leading-tight" style={{ fontWeight: 800 }}>{viewingEvent.title}</h2>
+                <p className="text-sm font-semibold text-gray-500 mt-1 flex items-center gap-1.5"><Users size={14} /> Organized by {viewingEvent.organizer}</p>
+                
+                <p className="text-sm text-gray-600 mt-4 leading-relaxed">{viewingEvent.desc}</p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                  <div className="p-3 rounded-2xl bg-gray-50 border border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center"><Calendar size={18} style={{ color: viewingEvent.color }} /></div>
+                    <div><p className="text-[10px] text-gray-400 font-bold uppercase">Date & Time</p><p className="text-xs font-bold text-gray-800">{viewingEvent.date}<br/>{viewingEvent.time}</p></div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-gray-50 border border-gray-100 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center"><MapPin size={18} style={{ color: viewingEvent.color }} /></div>
+                    <div><p className="text-[10px] text-gray-400 font-bold uppercase">Venue</p><p className="text-xs font-bold text-gray-800">{viewingEvent.venue}</p></div>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                  {eventRegs.find(r => r.entityId === viewingEvent.id && r.rollNo === user?.rollNo) ? (
+                    <div className="px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold flex flex-1 items-center justify-center gap-2">
+                       🎉 You are successfully registered for this event!
+                    </div>
+                  ) : (
+                    <>
+                      {viewingEvent.registrationOpen ? (
+                        <>
+                          <button onClick={() => { setRegForm(BLANK_REG); setRegisteringEvent(viewingEvent); }} className="flex-1 py-3 px-6 rounded-2xl text-white font-bold text-sm shadow-xl hover:opacity-90 transition-opacity" style={{ background: viewingEvent.color, boxShadow: `0 8px 20px ${viewingEvent.color}40` }}>
+                            Register Now
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex-1 py-3 px-6 rounded-2xl bg-gray-100 text-gray-500 font-bold text-sm text-center">
+                          Registrations Closed
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Registration Form Modal (Reusable for Club/Event) */}
+      {(registeringClub || registeringEvent) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ backgroundColor: "rgba(10, 5, 25, 0.65)", backdropFilter: "blur(12px)" }}>
+          <div className="w-full max-w-md rounded-[2.5rem] p-8 bento-card-strong shadow-2xl border-none animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-gray-800 text-xl" style={{ fontWeight: 800 }}>Register for {registeringClub ? "Club" : "Event"}</h3>
+              <button onClick={() => { setRegisteringClub(null); setRegisteringEvent(null); }} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors"><X size={16} /></button>
+            </div>
+            
+            <div className="mb-6 p-4 rounded-2xl" style={{ background: `${registeringClub?.color || registeringEvent?.color}10` }}>
+              <p className="text-sm font-bold" style={{ color: registeringClub?.color || registeringEvent?.color }}>{registeringClub?.name || registeringEvent?.title}</p>
+              <p className="text-xs text-gray-500 mt-1">Please fill the internal form to confirm your participation.</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Full Name</label>
+                  <input value={regForm.studentName} onChange={e => setRegForm(p => ({ ...p, studentName: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-gray-50" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Roll No</label>
+                  <input value={regForm.rollNo} onChange={e => setRegForm(p => ({ ...p, rollNo: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-gray-50" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Email ID</label>
+                <input type="email" value={regForm.email} onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))} placeholder="your.name@bitsathy.ac.in"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Phone Number</label>
+                <input type="tel" value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))} placeholder="10-digit mobile number"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Why do you want to join? (Optional)</label>
+                <textarea value={regForm.motivation} onChange={e => setRegForm(p => ({ ...p, motivation: e.target.value }))} rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => { setRegisteringClub(null); setRegisteringEvent(null); }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-50">Cancel</button>
+              <button onClick={() => submitRegistration(registeringClub ? "club" : "event", (registeringClub || registeringEvent)!.id)} className="flex-1 py-2.5 rounded-xl text-white text-sm hover:opacity-90 flex items-center justify-center gap-1.5 font-bold" style={{ background: registeringClub?.color || registeringEvent?.color }}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin View Registrations Modal */}
+      {adminViewRegs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ backgroundColor: "rgba(10, 5, 25, 0.65)", backdropFilter: "blur(12px)" }}>
+          <div className="w-full max-w-4xl rounded-[2.5rem] p-8 bento-card-strong shadow-2xl border-none max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full text-white font-bold uppercase mb-1 inline-block" style={{ background: adminViewRegs.color }}>{adminViewRegs.type} Registrations</span>
+                <h3 className="text-gray-800 text-xl leading-tight" style={{ fontWeight: 800 }}>{adminViewRegs.title}</h3>
+              </div>
+              <button onClick={() => setAdminViewRegs(null)} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors"><X size={16} /></button>
+            </div>
+            
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Student Name</th>
+                    <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Roll No</th>
+                    <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Contact</th>
+                    <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(adminViewRegs.type === "club" ? clubRegs : eventRegs).filter(r => r.entityId === adminViewRegs.entityId).map((reg, i) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-semibold text-gray-800">{reg.studentName}</td>
+                      <td className="px-4 py-3 font-mono text-gray-600 text-xs">{reg.rollNo}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs"><div>{reg.email}</div><div>{reg.phone}</div></td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{reg.date}</td>
+                    </tr>
+                  ))}
+                  {(adminViewRegs.type === "club" ? clubRegs : eventRegs).filter(r => r.entityId === adminViewRegs.entityId).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-sm">No registrations yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setAdminViewRegs(null)} className="py-2.5 px-6 rounded-xl bg-gray-100 text-gray-600 text-sm font-bold hover:bg-gray-200">Close Viewer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Club/Event Edit Modals (Keep Existing ones) */}
       {/* Club Modal */}
       {showClubModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ backgroundColor: "rgba(10, 5, 25, 0.65)", backdropFilter: "blur(12px)" }}>

@@ -59,6 +59,7 @@ interface Submission {
   size: string;
   status: "pending" | "verified" | "rejected";
   rejectionReason?: string;
+  fileData?: string;
 }
 
 /* ─── Initial data ────────────────────────────────────────────────────── */
@@ -117,12 +118,14 @@ function StudentDocuments() {
 
   const [savedSubmissions, setSavedSubmissions] = useStorage<Submission[]>("bit_document_submissions", INITIAL_SUBMISSIONS);
 
-  const [documents, setDocuments] = useState<StudentDoc[]>(() => {
+  const [globalDocs] = useStorage<StudentDoc[]>("bit_global_docs", INITIAL_DOCS);
+
+  const [documents, setDocuments] = useState<any[]>(() => {
     const mySubs = savedSubmissions.filter((s: any) => s.rollNo === user?.rollNo || s.studentName === user?.name);
-    return INITIAL_DOCS.map(doc => {
+    return globalDocs.map(doc => {
       const sub = mySubs.find((s: any) => s.docName === doc.name);
       if (sub) {
-        return { ...doc, subId: sub.id, status: sub.status, fileName: sub.fileName, size: sub.size, rejectionReason: sub.rejectionReason, uploadedAt: sub.uploadedAt };
+        return { ...doc, subId: sub.id, status: sub.status, fileName: sub.fileName, size: sub.size, rejectionReason: sub.rejectionReason, uploadedAt: sub.uploadedAt, fileData: sub.fileData };
       }
       return doc;
     });
@@ -131,18 +134,18 @@ function StudentDocuments() {
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("All");
   const [uploadingFor, setUploadingFor] = useState<number | null>(null);
-  const [viewingDoc, setViewingDoc] = useState<StudentDoc | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<any | null>(null);
   const [filter, setFilter] = useState<"all" | "required" | "pending" | "verified" | "rejected">("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const mySubs = savedSubmissions.filter((s: any) => s.rollNo === user?.rollNo || s.studentName === user?.name);
-    setDocuments(INITIAL_DOCS.map(doc => {
+    setDocuments(globalDocs.map(doc => {
       const sub = mySubs.find((s: any) => s.docName === doc.name);
-      if (sub) return { ...doc, subId: sub.id, status: sub.status, fileName: sub.fileName, size: sub.size, rejectionReason: sub.rejectionReason, uploadedAt: sub.uploadedAt };
+      if (sub) return { ...doc, subId: sub.id, status: sub.status, fileName: sub.fileName, size: sub.size, rejectionReason: sub.rejectionReason, uploadedAt: sub.uploadedAt, fileData: sub.fileData };
       return doc;
     }));
-  }, [savedSubmissions, user]);
+  }, [savedSubmissions, user, globalDocs]);
 
   const handleUpload = (id: number) => { setUploadingFor(id); fileInputRef.current?.click(); };
 
@@ -150,33 +153,28 @@ function StudentDocuments() {
     const f = e.target.files?.[0];
     if (!f || uploadingFor === null) return;
 
-    // Find doc
     const doc = documents.find(d => d.id === uploadingFor);
     if (!doc) return;
 
-    const payload: Submission = {
-      id: (doc as any).subId || Date.now(),
-      studentName: user?.name || "Unknown",
-      rollNo: user?.rollNo || "Unknown",
-      department: user?.department || "CSE",
-      docName: doc.name,
-      fileName: f.name,
-      size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
-      status: "pending",
-      uploadedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    const reader = new FileReader();
+    reader.onload = () => {
+      const payload: Submission = {
+        id: (doc as any).subId || Date.now(),
+        studentName: user?.name || "Unknown",
+        rollNo: user?.rollNo || "Unknown",
+        department: user?.department || "CSE",
+        docName: doc.name,
+        fileName: f.name,
+        size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
+        status: "pending",
+        uploadedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        fileData: reader.result as string
+      };
+      setSavedSubmissions(prev => [...prev.filter(s => s.id !== payload.id), payload]);
+      setUploadingFor(null);
     };
-
-    setSavedSubmissions(prev => {
-      const existing = prev.findIndex(s => s.id === payload.id);
-      if (existing >= 0) {
-        const next = [...prev];
-        next[existing] = payload;
-        return next;
-      }
-      return [...prev, payload];
-    });
-
-    setUploadingFor(null); e.target.value = "";
+    reader.readAsDataURL(f);
+    e.target.value = "";
   };
 
   const remove = (id: number) => {
@@ -306,7 +304,7 @@ function StudentDocuments() {
       {/* Document Cards */}
       <div className="flex flex-col gap-3 mb-8">
         {filtered.map(doc => {
-          const sc = STATUS_CONFIG[doc.status];
+          const sc = STATUS_CONFIG[doc.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG["not-uploaded"];
           return (
             <GlassCard key={doc.id} className="overflow-hidden">
               {doc.status === "rejected" && <div className="h-0.5 bg-gradient-to-r from-red-500 to-red-300" />}
@@ -435,10 +433,15 @@ function StudentDocuments() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm hover:bg-white/15 transition-all outline-none" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <button onClick={() => {
+                  const a = document.createElement("a");
+                  a.href = viewingDoc.fileData || "#";
+                  a.download = viewingDoc.fileName || "document";
+                  a.click();
+                }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm hover:bg-white/15 transition-all outline-none" style={{ background: "rgba(255,255,255,0.1)" }}>
                   <Download size={15} /> Download
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm hover:bg-white/15 transition-all outline-none" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm hover:bg-white/15 transition-all outline-none" style={{ background: "rgba(255,255,255,0.1)" }}>
                   <Printer size={15} /> Print
                 </button>
                 <div className="w-px h-6 bg-white/20 mx-1" />
@@ -666,6 +669,15 @@ function AdminDocuments() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={(e) => {
+                          e.stopPropagation();
+                          const a = document.createElement("a");
+                          a.href = sub.fileData || "#";
+                          a.download = sub.fileName || "document";
+                          a.click();
+                      }} className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-white text-xs hover:opacity-90 transition-opacity" style={{ background: "#5540DE", fontWeight: 600 }}>
+                        <Download size={12} />
+                      </button>
                       <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style={{ background: sc.bg, color: sc.color, fontWeight: 600 }}>
                         {sc.icon}{sc.label}
                       </span>
